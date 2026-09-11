@@ -28,7 +28,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useEffect } = React;
 
 const STATS = [
   { key: "cp", label: "Centre Pass", full: "Centre Pass Received" },
@@ -85,6 +85,35 @@ function NetballTracker() {
   const [backupCopied, setBackupCopied] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState("");
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("netball_unlocked") === "true") setUnlocked(true);
+      const saved = localStorage.getItem("netball_data");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.squad) setSquad(parsed.squad);
+        if (parsed.quarterRoster) setQuarterRoster(parsed.quarterRoster);
+        if (parsed.quarterData) setQuarterData(parsed.quarterData);
+        if (parsed.matchName !== undefined) setMatchName(parsed.matchName);
+        if (parsed.homeScore !== undefined) setHomeScore(parsed.homeScore);
+        if (parsed.awayScore !== undefined) setAwayScore(parsed.awayScore);
+      }
+    } catch (e) {
+      /* localStorage unavailable — app just won't remember between visits */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "netball_data",
+        JSON.stringify({ squad, quarterRoster, quarterData, matchName, homeScore, awayScore })
+      );
+    } catch (e) {
+      /* storage full or unavailable */
+    }
+  }, [squad, quarterRoster, quarterData, matchName, homeScore, awayScore]);
 
   const addPlayer = () => {
     const name = newName.trim();
@@ -280,6 +309,9 @@ function NetballTracker() {
     setAwayScore("");
     setImportText("");
     setImportMessage("Cleared.");
+    try {
+      localStorage.removeItem("netball_data");
+    } catch (e) {}
   };
 
   const isQuarterTab = QUARTERS.includes(activeTab);
@@ -304,9 +336,20 @@ function NetballTracker() {
     if (pwInput === TRACKER_PASSWORD) {
       setUnlocked(true);
       setPwError(false);
+      try {
+        localStorage.setItem("netball_unlocked", "true");
+      } catch (e) {}
     } else {
       setPwError(true);
     }
+  };
+
+  const lockDevice = () => {
+    try {
+      localStorage.removeItem("netball_unlocked");
+    } catch (e) {}
+    setUnlocked(false);
+    setPwInput("");
   };
 
   if (!unlocked) {
@@ -592,7 +635,7 @@ function NetballTracker() {
         {activeTab === "Backup" && (
           <div>
             <h2 className="display text-xl mb-1">Backup & Restore</h2>
-            <p className="text-xs text-gray-500 mb-4">This app doesn't save automatically. Copy the backup text below after a match (or anytime), keep it somewhere safe (Notes app, email to yourself), and paste it back in next time to restore everything.</p>
+            <p className="text-xs text-gray-500 mb-4">This device remembers your data automatically. Use the backup text below if you want a copy elsewhere (a different device, email, Notes app) or as a safety net.</p>
 
             <div className="mb-6">
               <div className="flex items-center justify-between mb-1">
@@ -618,6 +661,14 @@ function NetballTracker() {
                 ⬆ Restore from backup
               </button>
               {importMessage && <p className="text-xs mt-2 text-gray-600">{importMessage}</p>}
+            </div>
+
+            <div className="mt-8 pt-4" style={{ borderTop: "1px solid #eee" }}>
+              <label className="text-sm font-semibold block mb-1">Lock this device</label>
+              <p className="text-xs text-gray-500 mb-2">Re-locks the app on this phone/browser so the password is needed again next time — your data stays saved.</p>
+              <button onClick={lockDevice} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: "white", color: "#111", border: "1px solid #ddd" }}>
+                🔒 Lock now
+              </button>
             </div>
 
             <div className="mt-8 pt-4" style={{ borderTop: "1px solid #eee" }}>
