@@ -17,6 +17,11 @@
     .no-print { display: none !important; }
     .print-only { display: block !important; }
     body { background: white; }
+    @page { size: landscape; margin: 8mm; }
+    table { font-size: 10px !important; width: 100% !important; table-layout: fixed; }
+    th:first-child, td:first-child { width: 15%; }
+    th, td { padding: 3px !important; white-space: normal !important; word-break: break-word; position: static !important; }
+    .overflow-x-auto { overflow: visible !important; }
   }
 </style>
 </head>
