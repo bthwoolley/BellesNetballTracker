@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Netball Tracker</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+  .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
+  body, .body-font { font-family: 'Inter', sans-serif; margin: 0; }
+  .print-only { display: none; }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const STATS = [
+  { key: "cp", label: "Centre Pass", full: "Centre Pass Received" },
+  { key: "to", label: "Turnover", full: "Turnovers" },
+  { key: "fw", label: "Footwork", full: "Footwork" },
+  { key: "ob", label: "Obstruction", full: "Obstruction" },
+  { key: "ot", label: "Over Thirds", full: "Over Thirds" },
+  { key: "os", label: "Offside", full: "Offsides" },
+  { key: "ct", label: "Contact", full: "Contact" },
+  { key: "hb", label: "Held Ball", full: "Held Ball" },
+  { key: "ue", label: "Unforced Err", full: "Unforced Error" },
+  { key: "bp", label: "Bad Pass", full: "Bad Pass" },
+  { key: "ms", label: "Missed Shot", full: "Missed Shot" },
+  { key: "gl", label: "Goal", full: "Goal" },
+];
+
+const POSITIONS = ["GS", "GA", "WA", "C", "WD", "GD", "GK"];
+const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
+const RED = "#C00000";
+
+function emptyStats() {
+  const s = {};
+  STATS.forEach((st) => (s[st.key] = 0));
+  return s;
+}
+
+function NetballTracker() {
+  const TRACKER_PASSWORD = "Belles2013";
+  const [unlocked, setUnlocked] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState(false);
+
+  const [squad, setSquad] = useState([]);
+  const [quarterRoster, setQuarterRoster] = useState(() => {
+    const r = {};
+    QUARTERS.forEach((q) => (r[q] = []));
+    return r;
+  });
+  const [quarterData, setQuarterData] = useState(() => {
+    const qd = {};
+    QUARTERS.forEach((q) => (qd[q] = {}));
+    return qd;
+  });
+  const [activeTab, setActiveTab] = useState("Q1");
+  const [selectedPlayer, setSelectedPlayer] = useState({});
+  const [actionLog, setActionLog] = useState([]);
+  const [newName, setNewName] = useState("");
+  const [newPos, setNewPos] = useState(POSITIONS[0]);
+  const [matchName, setMatchName] = useState("");
+  const [addSelectValue, setAddSelectValue] = useState({});
+  const [copied, setCopied] = useState(false);
+  const [backupCopied, setBackupCopied] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importMessage, setImportMessage] = useState("");
+
+  const addPlayer = () => {
+    const name = newName.trim();
+    if (!name) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    setSquad((prev) => [...prev, { id, name, position: newPos }]);
+    setNewName("");
+  };
+
+  const removePlayer = (id) => {
+    setSquad((prev) => prev.filter((p) => p.id !== id));
+    setSelectedPlayer((prev) => {
+      const next = { ...prev };
+      QUARTERS.forEach((q) => {
+        if (next[q] === id) delete next[q];
+      });
+      return next;
+    });
+    setQuarterRoster((prev) => {
+      const next = {};
+      QUARTERS.forEach((q) => (next[q] = prev[q].filter((pid) => pid !== id)));
+      return next;
+    });
+  };
+
+  const getEntry = (quarter, playerId) =>
+    (quarterData[quarter] && quarterData[quarter][playerId]) || { stats: emptyStats(), notes: "", position: "" };
+
+  const addPlayerToQuarter = (quarter, playerId) => {
+    if (!playerId) return;
+    setQuarterRoster((prev) => {
+      if (prev[quarter].includes(playerId)) return prev;
+      return { ...prev, [quarter]: [...prev[quarter], playerId] };
+    });
+    setQuarterData((prev) => {
+      const q = { ...(prev[quarter] || {}) };
+      if (!q[playerId]) {
+        const homePosition = (squad.find((p) => p.id === playerId) || {}).position || "";
+        q[playerId] = { stats: emptyStats(), notes: "", position: homePosition };
+      }
+      return { ...prev, [quarter]: q };
+    });
+    setSelectedPlayer((prev) => ({ ...prev, [quarter]: playerId }));
+    setAddSelectValue((prev) => ({ ...prev, [quarter]: "" }));
+  };
+
+  const removePlayerFromQuarter = (quarter, playerId) => {
+    setQuarterRoster((prev) => ({ ...prev, [quarter]: prev[quarter].filter((id) => id !== playerId) }));
+    setSelectedPlayer((prev) => {
+      if (prev[quarter] !== playerId) return prev;
+      const next = { ...prev };
+      delete next[quarter];
+      return next;
+    });
+  };
+
+  const bump = (quarter, playerId, statKey, delta) => {
+    setQuarterData((prev) => {
+      const q = { ...(prev[quarter] || {}) };
+      const existing = q[playerId];
+      const entry = existing
+        ? { ...existing, stats: { ...existing.stats } }
+        : { stats: emptyStats(), notes: "", position: "" };
+      entry.stats[statKey] = Math.max(0, (entry.stats[statKey] || 0) + delta);
+      q[playerId] = entry;
+      return { ...prev, [quarter]: q };
+    });
+  };
+
+  const handleTap = (quarter, playerId, statKey) => {
+    bump(quarter, playerId, statKey, 1);
+    setActionLog((prev) => [...prev, { quarter, playerId, statKey }]);
+  };
+
+  const undo = () => {
+    setActionLog((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      bump(last.quarter, last.playerId, last.statKey, -1);
+      return prev.slice(0, -1);
+    });
+  };
+
+  const setNotes = (quarter, playerId, text) => {
+    setQuarterData((prev) => {
+      const q = { ...(prev[quarter] || {}) };
+      const existing = q[playerId];
+      const entry = existing ? { ...existing } : { stats: emptyStats(), notes: "", position: "" };
+      entry.notes = text;
+      q[playerId] = entry;
+      return { ...prev, [quarter]: q };
+    });
+  };
+
+  const setPosition = (quarter, playerId, position) => {
+    setQuarterData((prev) => {
+      const q = { ...(prev[quarter] || {}) };
+      const existing = q[playerId];
+      const entry = existing ? { ...existing } : { stats: emptyStats(), notes: "", position: "" };
+      entry.position = position;
+      q[playerId] = entry;
+      return { ...prev, [quarter]: q };
+    });
+  };
+
+  const totalsFor = (playerId) => {
+    const totals = emptyStats();
+    QUARTERS.forEach((q) => {
+      const entry = getEntry(q, playerId);
+      STATS.forEach((st) => (totals[st.key] += entry.stats[st.key] || 0));
+    });
+    return totals;
+  };
+
+  const positionsSummary = (player) => {
+    const parts = QUARTERS.map((q) => {
+      const entry = quarterData[q] && quarterData[q][player.id];
+      if (!entry) return null;
+      return `${q} ${entry.position || player.position || "—"}`;
+    }).filter(Boolean);
+    return parts.length ? parts.join(" · ") : player.position || "—";
+  };
+
+  const buildCsv = () => {
+    const header = ["Player", "Positions Played", ...STATS.map((s) => s.full), "Notes"];
+    const rows = squad.map((p) => {
+      const totals = totalsFor(p.id);
+      const notes = QUARTERS.map((q) => getEntry(q, p.id).notes).filter(Boolean).join(" | ");
+      return [p.name, positionsSummary(p), ...STATS.map((s) => totals[s.key]), notes];
+    });
+    const titleRow = matchName ? [[`Match: ${matchName}`]] : [];
+    return [...titleRow, header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+  };
+
+  const copyCsv = async () => {
+    try {
+      await navigator.clipboard.writeText(buildCsv());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {}
+  };
+
+  const buildBackup = () => JSON.stringify({ squad, quarterRoster, quarterData });
+
+  const copyBackup = async () => {
+    try {
+      await navigator.clipboard.writeText(buildBackup());
+      setBackupCopied(true);
+      setTimeout(() => setBackupCopied(false), 2000);
+    } catch (e) {}
+  };
+
+  const restoreBackup = () => {
+    try {
+      const parsed = JSON.parse(importText);
+      if (parsed.squad) setSquad(parsed.squad);
+      if (parsed.quarterRoster) setQuarterRoster(parsed.quarterRoster);
+      if (parsed.quarterData) setQuarterData(parsed.quarterData);
+      setImportMessage("Restored successfully.");
+    } catch (e) {
+      setImportMessage("Couldn't read that backup text — check it was pasted in full.");
+    }
+  };
+
+  const downloadPdf = () => {
+    window.print();
+  };
+
+  const clearAllData = () => {
+    const confirmed = window.confirm(
+      "This will permanently clear the squad, all quarters' stats, notes and positions, and the match name. Are you sure? (Copy a backup first if you want to keep this data.)"
+    );
+    if (!confirmed) return;
+    setSquad([]);
+    const emptyRoster = {};
+    const emptyData = {};
+    QUARTERS.forEach((q) => {
+      emptyRoster[q] = [];
+      emptyData[q] = {};
+    });
+    setQuarterRoster(emptyRoster);
+    setQuarterData(emptyData);
+    setSelectedPlayer({});
+    setActionLog([]);
+    setMatchName("");
+    setImportText("");
+    setImportMessage("Cleared.");
+  };
+
+  const isQuarterTab = QUARTERS.includes(activeTab);
+  const activePlayerId = selectedPlayer[activeTab];
+  const activePlayer = squad.find((p) => p.id === activePlayerId);
+  const activeEntry = activePlayer ? getEntry(activeTab, activePlayer.id) : null;
+  const activeQuarterRoster = isQuarterTab ? (quarterRoster[activeTab] || []) : [];
+  const availableToAdd = isQuarterTab ? squad.filter((p) => !activeQuarterRoster.includes(p.id)) : [];
+
+  const lastAction = actionLog[actionLog.length - 1];
+  const lastActionLabel = lastAction
+    ? (() => {
+        const p = squad.find((pp) => pp.id === lastAction.playerId);
+        const st = STATS.find((s) => s.key === lastAction.statKey);
+        return `${p ? p.name : "?"} · ${st ? st.full : "?"} · ${lastAction.quarter}`;
+      })()
+    : null;
+
+  const today = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+
+  const handleUnlock = () => {
+    if (pwInput === TRACKER_PASSWORD) {
+      setUnlocked(true);
+      setPwError(false);
+    } else {
+      setPwError(true);
+    }
+  };
+
+  if (!unlocked) {
+    return (
+      <div style={{ background: "#111111", minHeight: "100vh" }} className="flex items-center justify-center p-6 text-black">
+        <div className="w-full max-w-xs body-font">
+          <h1 className="display text-white text-4xl text-center mb-1">Netball Tracker</h1>
+          <p className="text-center text-sm mb-6" style={{ color: "#F2B8B8" }}>Enter the password to continue</p>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={(e) => { setPwInput(e.target.value); setPwError(false); }}
+            onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+            placeholder="Password"
+            className="w-full rounded-lg px-3 py-3 text-sm mb-2"
+            style={{ border: pwError ? "2px solid " + RED : "1px solid #444", background: "white" }}
+            autoFocus
+          />
+          {pwError && <p className="text-xs mb-2" style={{ color: RED }}>Wrong password — try again.</p>}
+          <button onClick={handleUnlock} className="w-full rounded-lg py-3 text-sm font-semibold text-white" style={{ background: RED }}>
+            Unlock
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#FAFAFA", minHeight: "100vh" }} className="text-black">
+      <div style={{ background: "#111111" }} className="px-4 pt-5 pb-4 body-font no-print">
+        <div className="flex items-center justify-between">
+          <h1 className="display text-white text-3xl leading-none">Netball Tracker</h1>
+          <button
+            onClick={undo}
+            disabled={actionLog.length === 0}
+            className="flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold disabled:opacity-30"
+            style={{ background: RED, color: "white" }}
+          >
+            <span>↺</span> Undo
+          </button>
+        </div>
+        {lastActionLabel && <p className="text-xs mt-1" style={{ color: "#F2B8B8" }}>Last: {lastActionLabel}</p>}
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto px-4 py-3 body-font no-print" style={{ background: "white", borderBottom: "1px solid #eee" }}>
+        {["Squad", ...QUARTERS, "Summary", "Backup"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="flex-shrink-0 rounded-full px-4 py-2 text-sm font-semibold"
+            style={activeTab === tab ? { background: RED, color: "white" } : { background: "#F0F0F0", color: "#111" }}
+          >
+            {tab === "Squad" && <span className="mr-1">👥</span>}
+            {tab === "Summary" && <span className="mr-1">🏆</span>}
+            {tab === "Backup" && <span className="mr-1">💾</span>}
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-4 body-font">
+        {activeTab === "Squad" && (
+          <div>
+            <h2 className="display text-xl mb-2">Squad</h2>
+            <p className="text-xs text-gray-500 mb-3">This is your full season roster. Position here is just a default — each quarter tab lets you set (or change) the actual position played.</p>
+            <div className="flex gap-2 mb-4">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Player name"
+                className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "#ddd" }}
+              />
+              <select value={newPos} onChange={(e) => setNewPos(e.target.value)} className="rounded-lg border px-2 py-2 text-sm" style={{ borderColor: "#ddd" }}>
+                {POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <button onClick={addPlayer} className="rounded-lg px-3 py-2 text-white" style={{ background: RED }}>+</button>
+            </div>
+            <div className="space-y-2">
+              {squad.length === 0 && <p className="text-sm text-gray-500">Add your squad (name + default position) to get started.</p>}
+              {squad.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "white", border: "1px solid #eee" }}>
+                  <span className="text-sm font-medium">{p.name} <span className="text-gray-400">· default {p.position}</span></span>
+                  <button onClick={() => removePlayer(p.id)} className="text-gray-400">✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isQuarterTab && (
+          <div>
+            <h2 className="display text-xl mb-2">{activeTab}</h2>
+            {squad.length === 0 ? (
+              <p className="text-sm text-gray-500">Add players in the Squad tab first.</p>
+            ) : (
+              <React.Fragment>
+                <p className="text-xs text-gray-500 mb-2">Add whoever's playing this quarter, then tap their name and a stat to tally.</p>
+
+                {availableToAdd.length > 0 && (
+                  <select
+                    value={addSelectValue[activeTab] || ""}
+                    onChange={(e) => addPlayerToQuarter(activeTab, e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm mb-3"
+                    style={{ borderColor: RED, color: RED, fontWeight: 600 }}
+                  >
+                    <option value="">+ Add a player to {activeTab}...</option>
+                    {availableToAdd.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
+                  </select>
+                )}
+
+                {activeQuarterRoster.length === 0 ? (
+                  <p className="text-sm text-gray-500">No one's been added to {activeTab} yet — use the dropdown above.</p>
+                ) : (
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+                    {activeQuarterRoster.map((pid) => {
+                      const p = squad.find((sp) => sp.id === pid);
+                      if (!p) return null;
+                      return (
+                        <div key={pid} className="flex-shrink-0 flex items-center rounded-full overflow-hidden">
+                          <button
+                            onClick={() => setSelectedPlayer((prev) => ({ ...prev, [activeTab]: pid }))}
+                            className="px-4 py-2 text-sm font-semibold"
+                            style={activePlayerId === pid ? { background: "#111", color: "white" } : { background: "#F0F0F0", color: "#111" }}
+                          >
+                            {p.name}
+                          </button>
+                          <button
+                            onClick={() => removePlayerFromQuarter(activeTab, pid)}
+                            className="px-2 py-2"
+                            style={activePlayerId === pid ? { background: "#111", color: "#aaa" } : { background: "#F0F0F0", color: "#aaa" }}
+                            title={`Remove from ${activeTab}`}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {activePlayer ? (
+                  <div>
+                    <div className="rounded-xl p-3 mb-3 flex items-center justify-between" style={{ background: "#111" }}>
+                      <span className="display text-white text-2xl leading-none">{activePlayer.name}</span>
+                      <select
+                        value={activeEntry.position || activePlayer.position}
+                        onChange={(e) => setPosition(activeTab, activePlayer.id, e.target.value)}
+                        className="rounded-full px-3 py-1 text-xs font-bold border-none"
+                        style={{ background: RED, color: "white" }}
+                      >
+                        {POSITIONS.map((pos) => <option key={pos} value={pos} style={{ color: "black" }}>{pos}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {STATS.map((st) => (
+                        <button
+                          key={st.key}
+                          onClick={() => handleTap(activeTab, activePlayer.id, st.key)}
+                          className="rounded-xl py-4 flex flex-col items-center justify-center"
+                          style={{
+                            background: st.key === "gl" ? RED : "white",
+                            color: st.key === "gl" ? "white" : "#111",
+                            border: st.key === "gl" ? "none" : "1px solid #ddd",
+                          }}
+                        >
+                          <span className="text-2xl font-bold">{activeEntry.stats[st.key] || 0}</span>
+                          <span className="text-xs font-medium mt-0.5">{st.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="text-xs text-gray-500 block mb-1">Notes ({activeTab})</label>
+                      <textarea
+                        value={activeEntry.notes}
+                        onChange={(e) => setNotes(activeTab, activePlayer.id, e.target.value)}
+                        rows={2}
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
+                        style={{ borderColor: "#ddd" }}
+                        placeholder="Anything worth remembering..."
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  activeQuarterRoster.length > 0 && <p className="text-sm text-gray-500">Pick a player above to start tallying.</p>
+                )}
+              </React.Fragment>
+            )}
+          </div>
+        )}
+
+        {activeTab === "Summary" && (
+          <div>
+            <div className="print-only mb-4">
+              <h1 className="display text-3xl">{matchName || "Netball Match Summary"}</h1>
+              <p className="text-sm text-gray-500">{today}</p>
+            </div>
+
+            <div className="no-print mb-3">
+              <label className="text-xs text-gray-500 block mb-1">Match name (shown on the PDF)</label>
+              <input
+                value={matchName}
+                onChange={(e) => setMatchName(e.target.value)}
+                placeholder="e.g. Belles Black vs Panthers"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "#ddd" }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mb-2 no-print">
+              <h2 className="display text-xl">Match Summary</h2>
+              <div className="flex gap-2">
+                <button onClick={copyCsv} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "#F0F0F0" }}>
+                  {copied ? "✓" : "⧉"} {copied ? "Copied" : "Copy as CSV"}
+                </button>
+                <button onClick={downloadPdf} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: RED }}>
+                  ⬇ Download PDF
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-2 no-print">Shows your whole squad, whether or not they played every quarter.</p>
+            {squad.length === 0 ? (
+              <p className="text-sm text-gray-500">Add players in the Squad tab first.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="text-xs w-full border-collapse">
+                  <thead>
+                    <tr style={{ background: "#111" }}>
+                      <th className="text-white text-left px-2 py-2 sticky left-0" style={{ background: "#111" }}>Player</th>
+                      {STATS.map((st) => <th key={st.key} className="text-white px-2 py-2 whitespace-nowrap">{st.label}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {squad.map((p, i) => {
+                      const totals = totalsFor(p.id);
+                      return (
+                        <tr key={p.id} style={{ background: i % 2 ? "#FBE0E0" : "white" }}>
+                          <td className="px-2 py-2 font-semibold sticky left-0" style={{ background: i % 2 ? "#FBE0E0" : "white" }}>
+                            {p.name}
+                            <div className="text-gray-400 font-normal" style={{ fontSize: "10px" }}>{positionsSummary(p)}</div>
+                          </td>
+                          {STATS.map((st) => <td key={st.key} className="text-center px-2 py-2">{totals[st.key]}</td>)}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "Backup" && (
+          <div>
+            <h2 className="display text-xl mb-1">Backup & Restore</h2>
+            <p className="text-xs text-gray-500 mb-4">This app doesn't save automatically. Copy the backup text below after a match (or anytime), keep it somewhere safe (Notes app, email to yourself), and paste it back in next time to restore everything.</p>
+
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold">Save my data</label>
+                <button onClick={copyBackup} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "#F0F0F0" }}>
+                  {backupCopied ? "✓" : "⧉"} {backupCopied ? "Copied" : "Copy backup text"}
+                </button>
+              </div>
+              <textarea readOnly value={buildBackup()} rows={4} className="w-full rounded-lg border px-3 py-2 text-xs font-mono" style={{ borderColor: "#ddd", background: "#F9F9F9" }} />
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold block mb-1">Restore my data</label>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                rows={4}
+                placeholder="Paste your backup text here..."
+                className="w-full rounded-lg border px-3 py-2 text-xs font-mono mb-2"
+                style={{ borderColor: "#ddd" }}
+              />
+              <button onClick={restoreBackup} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: RED }}>
+                ⬆ Restore from backup
+              </button>
+              {importMessage && <p className="text-xs mt-2 text-gray-600">{importMessage}</p>}
+            </div>
+
+            <div className="mt-8 pt-4" style={{ borderTop: "1px solid #eee" }}>
+              <label className="text-sm font-semibold block mb-1">Start a new match</label>
+              <p className="text-xs text-gray-500 mb-2">Wipes the squad, all quarters, and the match name — use this before reusing the link for a new game. Copy a backup first if you want to keep this one.</p>
+              <button onClick={clearAllData} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: "white", color: RED, border: "1px solid " + RED }}>
+                ✕ Clear all data
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<NetballTracker />);
+</script>
+</body>
+</html>
