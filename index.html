@@ -1,5 +1,29 @@
-import React, { useState } from "react";
-import { Undo2, Plus, X, Trophy, Users, Copy, Check, Download, Save, Upload } from "lucide-react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Netball Tracker</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+  .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
+  body, .body-font { font-family: 'Inter', sans-serif; margin: 0; }
+  .print-only { display: none; }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
 
 const STATS = [
   { key: "cp", label: "Centre Pass", full: "Centre Pass Received" },
@@ -26,20 +50,18 @@ function emptyStats() {
   return s;
 }
 
-export default function NetballTracker() {
+function NetballTracker() {
   const TRACKER_PASSWORD = "Belles2013";
   const [unlocked, setUnlocked] = useState(false);
   const [pwInput, setPwInput] = useState("");
   const [pwError, setPwError] = useState(false);
 
   const [squad, setSquad] = useState([]);
-  // quarterRoster: which players are active in each quarter (only these show as pills)
   const [quarterRoster, setQuarterRoster] = useState(() => {
     const r = {};
     QUARTERS.forEach((q) => (r[q] = []));
     return r;
   });
-  // quarterData: stats + notes + POSITION are all tracked per quarter, per player
   const [quarterData, setQuarterData] = useState(() => {
     const qd = {};
     QUARTERS.forEach((q) => (qd[q] = {}));
@@ -112,7 +134,6 @@ export default function NetballTracker() {
       delete next[quarter];
       return next;
     });
-    // Note: their tallied stats for this quarter are kept (not deleted), in case they're re-added later.
   };
 
   const bump = (quarter, playerId, statKey, delta) => {
@@ -201,9 +222,7 @@ export default function NetballTracker() {
       await navigator.clipboard.writeText(buildCsv());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      /* clipboard unavailable */
-    }
+    } catch (e) {}
   };
 
   const buildBackup = () => JSON.stringify({ squad, quarterRoster, quarterData, matchName, homeScore, awayScore });
@@ -213,9 +232,7 @@ export default function NetballTracker() {
       await navigator.clipboard.writeText(buildBackup());
       setBackupCopied(true);
       setTimeout(() => setBackupCopied(false), 2000);
-    } catch (e) {
-      /* clipboard unavailable */
-    }
+    } catch (e) {}
   };
 
   const restoreBackup = () => {
@@ -289,43 +306,22 @@ export default function NetballTracker() {
 
   if (!unlocked) {
     return (
-      <div
-        style={{ background: "#111111", minHeight: "100vh" }}
-        className="flex items-center justify-center p-6 text-black"
-      >
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
-          .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
-          .body-font { font-family: 'Inter', sans-serif; }
-        `}</style>
+      <div style={{ background: "#111111", minHeight: "100vh" }} className="flex items-center justify-center p-6 text-black">
         <div className="w-full max-w-xs body-font">
           <h1 className="display text-white text-4xl text-center mb-1">Netball Tracker</h1>
-          <p className="text-center text-sm mb-6" style={{ color: "#F2B8B8" }}>
-            Enter the password to continue
-          </p>
+          <p className="text-center text-sm mb-6" style={{ color: "#F2B8B8" }}>Enter the password to continue</p>
           <input
             type="password"
             value={pwInput}
-            onChange={(e) => {
-              setPwInput(e.target.value);
-              setPwError(false);
-            }}
+            onChange={(e) => { setPwInput(e.target.value); setPwError(false); }}
             onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
             placeholder="Password"
             className="w-full rounded-lg px-3 py-3 text-sm mb-2"
             style={{ border: pwError ? "2px solid " + RED : "1px solid #444", background: "white" }}
             autoFocus
           />
-          {pwError && (
-            <p className="text-xs mb-2" style={{ color: RED }}>
-              Wrong password — try again.
-            </p>
-          )}
-          <button
-            onClick={handleUnlock}
-            className="w-full rounded-lg py-3 text-sm font-semibold text-white"
-            style={{ background: RED }}
-          >
+          {pwError && <p className="text-xs mb-2" style={{ color: RED }}>Wrong password — try again.</p>}
+          <button onClick={handleUnlock} className="w-full rounded-lg py-3 text-sm font-semibold text-white" style={{ background: RED }}>
             Unlock
           </button>
         </div>
@@ -335,19 +331,6 @@ export default function NetballTracker() {
 
   return (
     <div style={{ background: "#FAFAFA", minHeight: "100vh" }} className="text-black">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
-        .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
-        body, .body-font { font-family: 'Inter', sans-serif; }
-        .print-only { display: none; }
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body { background: white; }
-        }
-      `}</style>
-
-      {/* Header */}
       <div style={{ background: "#111111" }} className="px-4 pt-5 pb-4 body-font no-print">
         <div className="flex items-center justify-between">
           <h1 className="display text-white text-3xl leading-none">Netball Tracker</h1>
@@ -357,46 +340,33 @@ export default function NetballTracker() {
             className="flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold disabled:opacity-30"
             style={{ background: RED, color: "white" }}
           >
-            <Undo2 size={16} />
-            Undo
+            <span>↺</span> Undo
           </button>
         </div>
-        {lastActionLabel && (
-          <p className="text-xs mt-1" style={{ color: "#F2B8B8" }}>
-            Last: {lastActionLabel}
-          </p>
-        )}
+        {lastActionLabel && <p className="text-xs mt-1" style={{ color: "#F2B8B8" }}>Last: {lastActionLabel}</p>}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto px-4 py-3 body-font no-print" style={{ background: "white", borderBottom: "1px solid #eee" }}>
         {["Squad", ...QUARTERS, "Summary", "Backup"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className="flex-shrink-0 rounded-full px-4 py-2 text-sm font-semibold"
-            style={
-              activeTab === tab
-                ? { background: RED, color: "white" }
-                : { background: "#F0F0F0", color: "#111" }
-            }
+            style={activeTab === tab ? { background: RED, color: "white" } : { background: "#F0F0F0", color: "#111" }}
           >
-            {tab === "Squad" && <Users size={14} className="inline mr-1 -mt-0.5" />}
-            {tab === "Summary" && <Trophy size={14} className="inline mr-1 -mt-0.5" />}
-            {tab === "Backup" && <Save size={14} className="inline mr-1 -mt-0.5" />}
+            {tab === "Squad" && <span className="mr-1">👥</span>}
+            {tab === "Summary" && <span className="mr-1">🏆</span>}
+            {tab === "Backup" && <span className="mr-1">💾</span>}
             {tab}
           </button>
         ))}
       </div>
 
       <div className="p-4 body-font">
-        {/* SQUAD TAB */}
         {activeTab === "Squad" && (
           <div>
             <h2 className="display text-xl mb-2">Squad</h2>
-            <p className="text-xs text-gray-500 mb-3">
-              This is your full season roster. Position here is just a default — each quarter tab lets you set (or change) the actual position played.
-            </p>
+            <p className="text-xs text-gray-500 mb-3">This is your full season roster. Position here is just a default — each quarter tab lets you set (or change) the actual position played.</p>
             <div className="flex gap-2 mb-4">
               <input
                 value={newName}
@@ -405,56 +375,30 @@ export default function NetballTracker() {
                 className="flex-1 rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "#ddd" }}
               />
-              <select
-                value={newPos}
-                onChange={(e) => setNewPos(e.target.value)}
-                className="rounded-lg border px-2 py-2 text-sm"
-                style={{ borderColor: "#ddd" }}
-              >
-                {POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
+              <select value={newPos} onChange={(e) => setNewPos(e.target.value)} className="rounded-lg border px-2 py-2 text-sm" style={{ borderColor: "#ddd" }}>
+                {POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
-              <button
-                onClick={addPlayer}
-                className="rounded-lg px-3 py-2 text-white"
-                style={{ background: RED }}
-              >
-                <Plus size={18} />
-              </button>
+              <button onClick={addPlayer} className="rounded-lg px-3 py-2 text-white" style={{ background: RED }}>+</button>
             </div>
             <div className="space-y-2">
-              {squad.length === 0 && (
-                <p className="text-sm text-gray-500">Add your squad (name + default position) to get started.</p>
-              )}
+              {squad.length === 0 && <p className="text-sm text-gray-500">Add your squad (name + default position) to get started.</p>}
               {squad.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between rounded-lg px-3 py-2"
-                  style={{ background: "white", border: "1px solid #eee" }}
-                >
-                  <span className="text-sm font-medium">
-                    {p.name} <span className="text-gray-400">· default {p.position}</span>
-                  </span>
-                  <button onClick={() => removePlayer(p.id)} className="text-gray-400">
-                    <X size={16} />
-                  </button>
+                <div key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "white", border: "1px solid #eee" }}>
+                  <span className="text-sm font-medium">{p.name} <span className="text-gray-400">· default {p.position}</span></span>
+                  <button onClick={() => removePlayer(p.id)} className="text-gray-400">✕</button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* QUARTER TABS */}
         {isQuarterTab && (
           <div>
             <h2 className="display text-xl mb-2">{activeTab}</h2>
             {squad.length === 0 ? (
               <p className="text-sm text-gray-500">Add players in the Squad tab first.</p>
             ) : (
-              <>
+              <React.Fragment>
                 <p className="text-xs text-gray-500 mb-2">Add whoever's playing this quarter, then tap their name and a stat to tally.</p>
 
                 {availableToAdd.length > 0 && (
@@ -465,11 +409,7 @@ export default function NetballTracker() {
                     style={{ borderColor: RED, color: RED, fontWeight: 600 }}
                   >
                     <option value="">+ Add a player to {activeTab}...</option>
-                    {availableToAdd.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.position})
-                      </option>
-                    ))}
+                    {availableToAdd.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
                   </select>
                 )}
 
@@ -485,25 +425,17 @@ export default function NetballTracker() {
                           <button
                             onClick={() => setSelectedPlayer((prev) => ({ ...prev, [activeTab]: pid }))}
                             className="px-4 py-2 text-sm font-semibold"
-                            style={
-                              activePlayerId === pid
-                                ? { background: "#111", color: "white" }
-                                : { background: "#F0F0F0", color: "#111" }
-                            }
+                            style={activePlayerId === pid ? { background: "#111", color: "white" } : { background: "#F0F0F0", color: "#111" }}
                           >
                             {p.name}
                           </button>
                           <button
                             onClick={() => removePlayerFromQuarter(activeTab, pid)}
                             className="px-2 py-2"
-                            style={
-                              activePlayerId === pid
-                                ? { background: "#111", color: "#aaa" }
-                                : { background: "#F0F0F0", color: "#aaa" }
-                            }
+                            style={activePlayerId === pid ? { background: "#111", color: "#aaa" } : { background: "#F0F0F0", color: "#aaa" }}
                             title={`Remove from ${activeTab}`}
                           >
-                            <X size={13} />
+                            ✕
                           </button>
                         </div>
                       );
@@ -513,10 +445,7 @@ export default function NetballTracker() {
 
                 {activePlayer ? (
                   <div>
-                    <div
-                      className="rounded-xl p-3 mb-3 flex items-center justify-between"
-                      style={{ background: "#111" }}
-                    >
+                    <div className="rounded-xl p-3 mb-3 flex items-center justify-between" style={{ background: "#111" }}>
                       <span className="display text-white text-2xl leading-none">{activePlayer.name}</span>
                       <select
                         value={activeEntry.position || activePlayer.position}
@@ -524,11 +453,7 @@ export default function NetballTracker() {
                         className="rounded-full px-3 py-1 text-xs font-bold border-none"
                         style={{ background: RED, color: "white" }}
                       >
-                        {POSITIONS.map((pos) => (
-                          <option key={pos} value={pos} style={{ color: "black" }}>
-                            {pos}
-                          </option>
-                        ))}
+                        {POSITIONS.map((pos) => <option key={pos} value={pos} style={{ color: "black" }}>{pos}</option>)}
                       </select>
                     </div>
 
@@ -544,9 +469,7 @@ export default function NetballTracker() {
                             border: st.key === "gl" ? "none" : "1px solid #ddd",
                           }}
                         >
-                          <span className="text-2xl font-bold">
-                            {activeEntry.stats[st.key] || 0}
-                          </span>
+                          <span className="text-2xl font-bold">{activeEntry.stats[st.key] || 0}</span>
                           <span className="text-xs font-medium mt-0.5">{st.label}</span>
                         </button>
                       ))}
@@ -565,16 +488,13 @@ export default function NetballTracker() {
                     </div>
                   </div>
                 ) : (
-                  activeQuarterRoster.length > 0 && (
-                    <p className="text-sm text-gray-500">Pick a player above to start tallying.</p>
-                  )
+                  activeQuarterRoster.length > 0 && <p className="text-sm text-gray-500">Pick a player above to start tallying.</p>
                 )}
-              </>
+              </React.Fragment>
             )}
           </div>
         )}
 
-        {/* SUMMARY TAB */}
         {activeTab === "Summary" && (
           <div>
             <div className="print-only mb-4">
@@ -624,21 +544,11 @@ export default function NetballTracker() {
             <div className="flex items-center justify-between mb-2 no-print">
               <h2 className="display text-xl">Match Summary</h2>
               <div className="flex gap-2">
-                <button
-                  onClick={copyCsv}
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold"
-                  style={{ background: "#F0F0F0" }}
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? "Copied" : "Copy as CSV"}
+                <button onClick={copyCsv} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "#F0F0F0" }}>
+                  {copied ? "✓" : "⧉"} {copied ? "Copied" : "Copy as CSV"}
                 </button>
-                <button
-                  onClick={downloadPdf}
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
-                  style={{ background: RED }}
-                >
-                  <Download size={14} />
-                  Download PDF
+                <button onClick={downloadPdf} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: RED }}>
+                  ⬇ Download PDF
                 </button>
               </div>
             </div>
@@ -650,14 +560,8 @@ export default function NetballTracker() {
                 <table className="text-xs w-full border-collapse">
                   <thead>
                     <tr style={{ background: "#111" }}>
-                      <th className="text-white text-left px-2 py-2 sticky left-0" style={{ background: "#111" }}>
-                        Player
-                      </th>
-                      {STATS.map((st) => (
-                        <th key={st.key} className="text-white px-2 py-2 whitespace-nowrap">
-                          {st.label}
-                        </th>
-                      ))}
+                      <th className="text-white text-left px-2 py-2 sticky left-0" style={{ background: "#111" }}>Player</th>
+                      {STATS.map((st) => <th key={st.key} className="text-white px-2 py-2 whitespace-nowrap">{st.label}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -667,15 +571,9 @@ export default function NetballTracker() {
                         <tr key={p.id} style={{ background: i % 2 ? "#FBE0E0" : "white" }}>
                           <td className="px-2 py-2 font-semibold sticky left-0" style={{ background: i % 2 ? "#FBE0E0" : "white" }}>
                             {p.name}
-                            <div className="text-gray-400 font-normal" style={{ fontSize: "10px" }}>
-                              {positionsSummary(p)}
-                            </div>
+                            <div className="text-gray-400 font-normal" style={{ fontSize: "10px" }}>{positionsSummary(p)}</div>
                           </td>
-                          {STATS.map((st) => (
-                            <td key={st.key} className="text-center px-2 py-2">
-                              {totals[st.key]}
-                            </td>
-                          ))}
+                          {STATS.map((st) => <td key={st.key} className="text-center px-2 py-2">{totals[st.key]}</td>)}
                         </tr>
                       );
                     })}
@@ -686,33 +584,19 @@ export default function NetballTracker() {
           </div>
         )}
 
-        {/* BACKUP TAB */}
         {activeTab === "Backup" && (
           <div>
-            <h2 className="display text-xl mb-1">Backup &amp; Restore</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              This app doesn't save automatically. Copy the backup text below after a match (or anytime), keep it somewhere safe (Notes app, email to yourself), and paste it back in next time to restore everything.
-            </p>
+            <h2 className="display text-xl mb-1">Backup & Restore</h2>
+            <p className="text-xs text-gray-500 mb-4">This app doesn't save automatically. Copy the backup text below after a match (or anytime), keep it somewhere safe (Notes app, email to yourself), and paste it back in next time to restore everything.</p>
 
             <div className="mb-6">
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-semibold">Save my data</label>
-                <button
-                  onClick={copyBackup}
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold"
-                  style={{ background: "#F0F0F0" }}
-                >
-                  {backupCopied ? <Check size={14} /> : <Copy size={14} />}
-                  {backupCopied ? "Copied" : "Copy backup text"}
+                <button onClick={copyBackup} className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "#F0F0F0" }}>
+                  {backupCopied ? "✓" : "⧉"} {backupCopied ? "Copied" : "Copy backup text"}
                 </button>
               </div>
-              <textarea
-                readOnly
-                value={buildBackup()}
-                rows={4}
-                className="w-full rounded-lg border px-3 py-2 text-xs font-mono"
-                style={{ borderColor: "#ddd", background: "#F9F9F9" }}
-              />
+              <textarea readOnly value={buildBackup()} rows={4} className="w-full rounded-lg border px-3 py-2 text-xs font-mono" style={{ borderColor: "#ddd", background: "#F9F9F9" }} />
             </div>
 
             <div>
@@ -725,29 +609,17 @@ export default function NetballTracker() {
                 className="w-full rounded-lg border px-3 py-2 text-xs font-mono mb-2"
                 style={{ borderColor: "#ddd" }}
               />
-              <button
-                onClick={restoreBackup}
-                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white"
-                style={{ background: RED }}
-              >
-                <Upload size={16} />
-                Restore from backup
+              <button onClick={restoreBackup} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: RED }}>
+                ⬆ Restore from backup
               </button>
               {importMessage && <p className="text-xs mt-2 text-gray-600">{importMessage}</p>}
             </div>
 
             <div className="mt-8 pt-4" style={{ borderTop: "1px solid #eee" }}>
               <label className="text-sm font-semibold block mb-1">Start a new match</label>
-              <p className="text-xs text-gray-500 mb-2">
-                Wipes the squad, all quarters, and the match name — use this before reusing the link for a new game. Copy a backup first if you want to keep this one.
-              </p>
-              <button
-                onClick={clearAllData}
-                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold"
-                style={{ background: "white", color: RED, border: "1px solid " + RED }}
-              >
-                <X size={16} />
-                Clear all data
+              <p className="text-xs text-gray-500 mb-2">Wipes the squad, all quarters, and the match name — use this before reusing the link for a new game. Copy a backup first if you want to keep this one.</p>
+              <button onClick={clearAllData} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: "white", color: RED, border: "1px solid " + RED }}>
+                ✕ Clear all data
               </button>
             </div>
           </div>
@@ -756,3 +628,9 @@ export default function NetballTracker() {
     </div>
   );
 }
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<NetballTracker />);
+</script>
+</body>
+</html>
