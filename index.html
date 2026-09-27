@@ -222,6 +222,20 @@ function NetballTracker() {
     });
   };
 
+  const setStatDirect = (quarter, playerId, statKey, rawValue) => {
+    const num = Math.max(0, parseInt(rawValue, 10) || 0);
+    setQuarterData((prev) => {
+      const q = { ...(prev[quarter] || {}) };
+      const existing = q[playerId];
+      const entry = existing
+        ? { ...existing, stats: { ...existing.stats } }
+        : { stats: emptyStats(), notes: "", position: "" };
+      entry.stats[statKey] = num;
+      q[playerId] = entry;
+      return { ...prev, [quarter]: q };
+    });
+  };
+
   const totalsFor = (playerId) => {
     const totals = emptyStats();
     QUARTERS.forEach((q) => {
@@ -693,8 +707,8 @@ function NetballTracker() {
             </div>
             <p className="text-xs text-gray-500 mb-2 no-print">
               {summaryFilter === "All"
-                ? "Shows your whole squad, whether or not they played every quarter."
-                : `Showing only players added to ${summaryFilter}.`}
+                ? "Shows your whole squad, whether or not they played every quarter. Filter to a single quarter above to fix a mistake — you can then edit any number directly."
+                : `Showing only players added to ${summaryFilter}. Tap any number below to correct a mistake for this quarter.`}
             </p>
             {summarySquad.length === 0 ? (
               <p className="text-sm text-gray-500">
@@ -719,7 +733,23 @@ function NetballTracker() {
                             {p.name}
                             <div className="text-gray-400 font-normal" style={{ fontSize: "10px" }}>{displayedPositionFor(p)}</div>
                           </td>
-                          {STATS.map((st) => <td key={st.key} className="text-center px-2 py-2">{totals[st.key]}</td>)}
+                          {STATS.map((st) => (
+                            <td key={st.key} className="text-center px-1 py-1 no-print-input-wrap">
+                              {summaryFilter === "All" ? (
+                                <span className="px-2 py-2 inline-block">{totals[st.key]}</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={totals[st.key] || 0}
+                                  onChange={(e) => setStatDirect(summaryFilter, p.id, st.key, e.target.value)}
+                                  className="w-12 text-center rounded border text-xs py-1 no-print"
+                                  style={{ borderColor: "#ddd" }}
+                                />
+                              )}
+                              <span className="print-only">{totals[st.key]}</span>
+                            </td>
+                          ))}
                           <td className="text-center px-2 py-2 font-semibold">{shootingPercentFor(p)}</td>
                         </tr>
                       );
