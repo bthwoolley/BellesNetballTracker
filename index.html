@@ -130,16 +130,25 @@ function NetballTracker() {
   }, [timerStart, timerAcc, lengthMs]);
 
   const elapsedMs = timerAcc + (timerStart ? Date.now() - timerStart : 0);
-  // blank / 0 = no alert; otherwise the clock turns amber once it reaches this many minutes
-  const alertMs = parseFloat(alertMin) > 0 ? parseFloat(alertMin) * 60000 : null;
-  const pastAlert = alertMs !== null && elapsedMs >= alertMs;
+  const counting = lengthMs !== null; // true = counting DOWN from the quarter length
+  const shownMs = counting ? Math.max(0, lengthMs - elapsedMs) : elapsedMs;
+  const timeUp = counting && elapsedMs >= lengthMs;
 
-  const formatTime = (ms) => {
-    const s = Math.floor(ms / 1000);
+  // countdown rounds up, so a fresh 15-minute clock reads 15:00 and then 14:59 after one second
+  const formatTime = (ms, countDown) => {
+    const s = countDown ? Math.ceil(ms / 1000) : Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   };
 
+  const commitLength = () => {
+    if (lengthDraft !== null) {
+      setLengthMin(lengthDraft);
+      setLengthDraft(null);
+    }
+  };
+
   const toggleTimer = () => {
+    commitLength();
     if (timerStart) {
       setTimerAcc(timerAcc + (Date.now() - timerStart));
       setTimerStart(null);
@@ -149,7 +158,9 @@ function NetballTracker() {
   };
 
   const resetTimer = () => {
-    if (elapsedMs > 0 && !window.confirm("Reset the timer to 0:00?")) return;
+    commitLength();
+    const target = counting ? formatTime(lengthMs, true) : "0:00";
+    if (elapsedMs > 0 && !window.confirm(`Reset the clock to ${target}?`)) return;
     setTimerAcc(0);
     setTimerStart(null);
   };
@@ -631,17 +642,18 @@ function NetballTracker() {
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <span
             className="display text-3xl leading-none"
-            style={{ color: pastAlert ? "#FFD166" : "white", minWidth: "84px" }}
-            title={pastAlert ? "Past alert time" : "Match timer"}
+            style={{ color: timeUp ? "#FFD166" : "white", minWidth: "84px" }}
+            title={timeUp ? "Time up" : "Match timer"}
           >
-            {formatTime(elapsedMs)}
+            {formatTime(shownMs, counting)}
           </span>
           <button
             onClick={toggleTimer}
-            className="rounded-full px-4 py-2 text-sm font-semibold"
+            disabled={timeUp}
+            className="rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60"
             style={{ background: timerStart ? "white" : RED, color: timerStart ? "#111" : "white" }}
           >
-            {timerStart ? "⏸ Pause" : elapsedMs > 0 ? "▶ Resume" : "▶ Start"}
+            {timeUp ? "⏱ Time up" : timerStart ? "⏸ Pause" : elapsedMs > 0 ? "▶ Resume" : "▶ Start"}
           </button>
           <button
             onClick={resetTimer}
@@ -652,14 +664,16 @@ function NetballTracker() {
             Reset
           </button>
           <label className="flex items-center gap-1 text-xs" style={{ color: "#F2B8B8" }}>
-            Alert at
+            Quarter length
             <input
               type="number"
               inputMode="decimal"
               min="0"
               step="any"
-              value={alertMin}
-              onChange={(e) => setAlertMin(e.target.value)}
+              value={lengthDraft !== null ? lengthDraft : lengthMin}
+              onChange={(e) => setLengthDraft(e.target.value)}
+              onBlur={commitLength}
+              onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
               placeholder="off"
               className="w-14 rounded px-1 py-1 text-center text-sm"
               style={{ background: "white", color: "#111" }}
