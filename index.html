@@ -100,23 +100,34 @@ function NetballTracker() {
   };
   const [timerAcc, setTimerAcc] = useState(() => readSavedTimer().acc || 0);
   const [timerStart, setTimerStart] = useState(() => readSavedTimer().startedAt || null);
-  const [alertMin, setAlertMin] = useState(() => {
+  const [lengthMin, setLengthMin] = useState(() => {
     const s = readSavedTimer();
-    return s.alertMin !== undefined ? String(s.alertMin) : "15";
+    return s.lengthMin !== undefined ? String(s.lengthMin) : "15";
   });
+  const [lengthDraft, setLengthDraft] = useState(null); // what you're typing; applied when you tap away, press Enter, or hit Start
   const [, setTick] = useState(0);
 
   useEffect(() => {
     try {
-      localStorage.setItem("netball_timer", JSON.stringify({ acc: timerAcc, startedAt: timerStart, alertMin }));
+      localStorage.setItem("netball_timer", JSON.stringify({ acc: timerAcc, startedAt: timerStart, lengthMin }));
     } catch (e) {}
-  }, [timerAcc, timerStart, alertMin]);
+  }, [timerAcc, timerStart, lengthMin]);
+
+  // quarter length in ms; blank or 0 = no countdown (the clock just counts up instead)
+  const lengthMs = parseFloat(lengthMin) > 0 ? parseFloat(lengthMin) * 60000 : null;
 
   useEffect(() => {
     if (!timerStart) return;
-    const id = setInterval(() => setTick((t) => t + 1), 250);
+    const id = setInterval(() => {
+      setTick((t) => t + 1);
+      if (lengthMs !== null && timerAcc + (Date.now() - timerStart) >= lengthMs) {
+        // time's up: stop the clock on exactly 0:00
+        setTimerAcc(lengthMs);
+        setTimerStart(null);
+      }
+    }, 250);
     return () => clearInterval(id);
-  }, [timerStart]);
+  }, [timerStart, timerAcc, lengthMs]);
 
   const elapsedMs = timerAcc + (timerStart ? Date.now() - timerStart : 0);
   // blank / 0 = no alert; otherwise the clock turns amber once it reaches this many minutes
