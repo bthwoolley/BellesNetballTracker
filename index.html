@@ -29,7 +29,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 const STATS = [
   { key: "cp", label: "Centre Pass", full: "Centre Pass Received" },
@@ -90,6 +90,105 @@ function NetballTracker() {
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState("");
 
+  // --- match timer (timestamp-based, so it stays correct if the screen sleeps; saved on this device) ---
+  const readSavedTimer = () => {
+    try {
+      return JSON.parse(localStorage.getItem("netball_timer")) || {};
+    } catch (e) {
+      return {};
+    }
+  };
+  const [timerAcc, setTimerAcc] = useState(() => readSavedTimer().acc || 0);
+  const [timerStart, setTimerStart] = useState(() => readSavedTimer().startedAt || null);
+  const [alertMin, setAlertMin] = useState(() => {
+    const s = readSavedTimer();
+    return s.alertMin !== undefined ? String(s.alertMin) : "15";
+  });
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("netball_timer", JSON.stringify({ acc: timerAcc, startedAt: timerStart, alertMin }));
+    } catch (e) {}
+  }, [timerAcc, timerStart, alertMin]);
+
+  useEffect(() => {
+    if (!timerStart) return;
+    const id = setInterval(() => setTick((t) => t + 1), 250);
+    return () => clearInterval(id);
+  }, [timerStart]);
+
+  const elapsedMs = timerAcc + (timerStart ? Date.now() - timerStart : 0);
+  // blank / 0 = no alert; otherwise the clock turns amber once it reaches this many minutes
+  const alertMs = parseFloat(alertMin) > 0 ? parseFloat(alertMin) * 60000 : null;
+  const pastAlert = alertMs !== null && elapsedMs >= alertMs;
+
+  const formatTime = (ms) => {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+
+  const toggleTimer = () => {
+    if (timerStart) {
+      setTimerAcc(timerAcc + (Date.now() - timerStart));
+      setTimerStart(null);
+    } else {
+      setTimerStart(Date.now());
+    }
+  };
+
+  const resetTimer = () => {
+    if (elapsedMs > 0 && !window.confirm("Reset the timer to 0:00?")) return;
+    setTimerAcc(0);
+    setTimerStart(null);
+  };
+
+  // --- drag-to-reorder for the player row (pointer events, so it works on iPad touch) ---
+  const pillRefs = useRef({});
+  const dragRef = useRef(null);
+  const rosterRef = useRef(null);
+  const [draggingId, setDraggingId] = useState(null);
+  rosterRef.current = quarterRoster;
+
+  useEffect(() => {
+    if (!draggingId) return;
+    const onMove = (e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const current = (rosterRef.current && rosterRef.current[drag.quarter]) || [];
+      const others = current.filter((id) => id !== drag.pid);
+      let k = others.length;
+      for (let i = 0; i < others.length; i++) {
+        const el = pillRefs.current[others[i]];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (e.clientX < r.left + r.width / 2) {
+          k = i;
+          break;
+        }
+      }
+      setQuarterRoster((prev) => {
+        const cur = prev[drag.quarter] || [];
+        const o = cur.filter((id) => id !== drag.pid);
+        const next = [...o.slice(0, k), drag.pid, ...o.slice(k)];
+        if (next.join(",") === cur.join(",")) return prev;
+        return { ...prev, [drag.quarter]: next };
+      });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      setDraggingId(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [draggingId]);
+
   useEffect(() => {
     try {
       if (localStorage.getItem("netball_unlocked") === "true") setUnlocked(true);
@@ -128,6 +227,8 @@ function NetballTracker() {
   };
 
   const removePlayer = (id) => {
+    const who = (squad.find((p) => p.id === id) || {}).name || "this player";
+    if (!window.confirm(`Remove ${who} from the squad? Their stats will no longer show in any quarter or the Summary.`)) return;
     setSquad((prev) => prev.filter((p) => p.id !== id));
     setSelectedPlayer((prev) => {
       const next = { ...prev };
@@ -165,6 +266,15 @@ function NetballTracker() {
   };
 
   const removePlayerFromQuarter = (quarter, playerId) => {
+    const entry = quarterData[quarter] && quarterData[quarter][playerId];
+    const tallies = entry ? Object.values(entry.stats || {}).reduce((a, b) => a + (b || 0), 0) : 0;
+    if (tallies > 0) {
+      const name = (squad.find((p) => p.id === playerId) || {}).name || "This player";
+      const ok = window.confirm(
+        `${name} has ${tallies} tallies in ${quarter}.\n\nRemoving them takes those tallies OUT of the totals (they come back if you add ${name} to ${quarter} again).\n\nIf they just came off the court, press Cancel and use "Subbed off" instead.\n\nRemove anyway?`
+      );
+      if (!ok) return;
+    }
     setQuarterRoster((prev) => ({ ...prev, [quarter]: prev[quarter].filter((id) => id !== playerId) }));
     setSelectedPlayer((prev) => {
       if (prev[quarter] !== playerId) return prev;
@@ -212,7 +322,26 @@ function NetballTracker() {
     });
   };
 
+  const movePlayerInQuarter = (quarter, playerId, dir) => {
+    setQuarterRoster((prev) => {
+      const arr = [...(prev[quarter] || [])];
+      const i = arr.indexOf(playerId);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return prev;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { ...prev, [quarter]: arr };
+    });
+  };
+
   const setSubbedOff = (quarter, playerId, value) => {
+    if (value) {
+      // subbed-off players go to the end of the row
+      setQuarterRoster((prev) => {
+        const arr = (prev[quarter] || []).filter((id) => id !== playerId);
+        if (!(prev[quarter] || []).includes(playerId)) return prev;
+        return { ...prev, [quarter]: [...arr, playerId] };
+      });
+    }
     setQuarterData((prev) => {
       const q = { ...(prev[quarter] || {}) };
       const existing = q[playerId];
@@ -404,6 +533,8 @@ function NetballTracker() {
     setAwayScore("");
     setImportText("");
     setImportMessage("Cleared.");
+    setTimerAcc(0);
+    setTimerStart(null);
     try {
       localStorage.removeItem("netball_data");
     } catch (e) {}
@@ -486,6 +617,45 @@ function NetballTracker() {
             <span>↺</span> Undo
           </button>
         </div>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span
+            className="display text-3xl leading-none"
+            style={{ color: pastAlert ? "#FFD166" : "white", minWidth: "84px" }}
+            title={pastAlert ? "Past alert time" : "Match timer"}
+          >
+            {formatTime(elapsedMs)}
+          </span>
+          <button
+            onClick={toggleTimer}
+            className="rounded-full px-4 py-2 text-sm font-semibold"
+            style={{ background: timerStart ? "white" : RED, color: timerStart ? "#111" : "white" }}
+          >
+            {timerStart ? "⏸ Pause" : elapsedMs > 0 ? "▶ Resume" : "▶ Start"}
+          </button>
+          <button
+            onClick={resetTimer}
+            disabled={elapsedMs === 0 && !timerStart}
+            className="rounded-full px-3 py-2 text-sm font-semibold disabled:opacity-30"
+            style={{ background: "#333", color: "white" }}
+          >
+            Reset
+          </button>
+          <label className="flex items-center gap-1 text-xs" style={{ color: "#F2B8B8" }}>
+            Alert at
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={alertMin}
+              onChange={(e) => setAlertMin(e.target.value)}
+              placeholder="off"
+              className="w-14 rounded px-1 py-1 text-center text-sm"
+              style={{ background: "white", color: "#111" }}
+            />
+            min
+          </label>
+        </div>
         {lastActionLabel && <p className="text-xs mt-1" style={{ color: "#F2B8B8" }}>Last: {lastActionLabel}</p>}
       </div>
 
@@ -565,7 +735,33 @@ function NetballTracker() {
                       if (!p) return null;
                       const isOff = getEntry(activeTab, pid).subbedOff;
                       return (
-                        <div key={pid} className="flex-shrink-0 flex items-center rounded-full overflow-hidden" style={{ opacity: isOff ? 0.6 : 1 }}>
+                        <div
+                          key={pid}
+                          ref={(el) => { pillRefs.current[pid] = el; }}
+                          className="flex-shrink-0 flex items-center rounded-full overflow-hidden"
+                          style={{ opacity: isOff ? 0.6 : 1, boxShadow: draggingId === pid ? "0 0 0 2px " + RED : "none" }}
+                        >
+                          <span
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              dragRef.current = { quarter: activeTab, pid };
+                              setDraggingId(pid);
+                              setSelectedPlayer((prev) => ({ ...prev, [activeTab]: pid }));
+                            }}
+                            className="pl-3 pr-1 py-2 text-xs font-bold"
+                            style={{
+                              touchAction: "none",
+                              userSelect: "none",
+                              WebkitUserSelect: "none",
+                              WebkitTouchCallout: "none",
+                              cursor: "grab",
+                              background: activePlayerId === pid ? "#111" : "#F0F0F0",
+                              color: "#aaa",
+                            }}
+                            title="Drag to reorder"
+                          >
+                            ⋮⋮
+                          </span>
                           <button
                             onClick={() => setSelectedPlayer((prev) => ({ ...prev, [activeTab]: pid }))}
                             className="px-4 py-2 text-sm font-semibold"
@@ -603,6 +799,25 @@ function NetballTracker() {
 
                     <div className="rounded-lg px-3 py-2 mb-3 text-center text-sm font-bold" style={{ background: "#FBE0E0", color: RED }}>
                       🏐 Team Goals So Far (whole match): {teamGoalsTotal}
+                    </div>
+
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => movePlayerInQuarter(activeTab, activePlayer.id, -1)}
+                        disabled={activeQuarterRoster.indexOf(activePlayer.id) <= 0}
+                        className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-30"
+                        style={{ background: "white", color: "#111", border: "1px solid #ddd" }}
+                      >
+                        ◀ Move left
+                      </button>
+                      <button
+                        onClick={() => movePlayerInQuarter(activeTab, activePlayer.id, 1)}
+                        disabled={activeQuarterRoster.indexOf(activePlayer.id) >= activeQuarterRoster.length - 1}
+                        className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-30"
+                        style={{ background: "white", color: "#111", border: "1px solid #ddd" }}
+                      >
+                        Move right ▶
+                      </button>
                     </div>
 
                     <button
