@@ -34,6 +34,7 @@ const { useState, useEffect, useRef } = React;
 const STATS = [
   { key: "cp", label: "Centre Pass", full: "Centre Pass Received" },
   { key: "to", label: "Interception", full: "Interceptions" },
+  { key: "tv", label: "Turnover", full: "Turnovers" },
   { key: "fw", label: "Footwork", full: "Footwork" },
   { key: "ob", label: "Obstruction", full: "Obstruction" },
   { key: "ot", label: "Over Thirds", full: "Over Thirds" },
@@ -865,7 +866,7 @@ function NetballTracker() {
                           key={st.key}
                           disabled={!!activeEntry.subbedOff}
                           onClick={() => handleTap(activeTab, activePlayer.id, st.key)}
-                          className="rounded-xl py-4 flex flex-col items-center justify-center"
+                          className={"rounded-xl py-4 flex flex-col items-center justify-center" + (st.key === "gl" ? " col-span-2" : "")}
                           style={{
                             background: st.key === "gl" ? RED : "white",
                             color: st.key === "gl" ? "white" : "#111",
