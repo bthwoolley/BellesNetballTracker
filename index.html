@@ -502,6 +502,27 @@ function NetballTracker() {
   };
 
   const downloadPdf = () => {
+    // Fit every player on ONE landscape page: work out the biggest readable text size for this many rows.
+    const n = Math.max(summarySquad.length, 1);
+    const availablePx = 150 * 3.78; // ~150mm of an A4 landscape page is left for the table rows
+    const pad = 2;
+    const stacked = n <= 16; // few players: position sits under the name; many players: beside it to save height
+    const lines = stacked ? 2.25 : 1.3;
+    const fontPx = Math.max(7, Math.min(10, Math.floor((availablePx / n - pad * 2) / lines)));
+    let el = document.getElementById("print-fit");
+    if (!el) {
+      el = document.createElement("style");
+      el.id = "print-fit";
+      document.head.appendChild(el);
+    }
+    el.textContent = `@media print {
+      table { font-size: ${fontPx}px !important; }
+      th, td { padding: ${pad}px 3px !important; line-height: 1.25 !important; }
+      td:first-child > div { ${stacked ? "" : "display: inline !important; margin-left: 4px;"} font-size: ${Math.max(7, fontPx - 2)}px !important; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      #root > div { min-height: 0 !important; }
+    }`;
     window.print();
   };
 
