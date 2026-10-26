@@ -554,7 +554,7 @@ function NetballTracker() {
     const clean = (s) => String(s).replace(/—/g, "-").replace(/ · /g, ", ").replace(/\(subbed off\)/g, "(off)");
     const n = Math.max(summarySquad.length, 1);
     const W = 297, H = 210, M = 8;
-    const head = [["Player", "Positions", ...STATS.map((s) => s.label.replace(/ /g, " ")), "Shooting %"]];
+    const head = [["Player", "Positions", ...STATS.map((s) => s.label.replace(/ /g, "\n")), "Shooting\n%"]]; // two-word names stack: one word on top of the other
     const body = summarySquad.map((p) => {
       const t = displayedStatsFor(p.id);
       return [clean(p.name), clean(displayedPositionFor(p)), ...STATS.map((s) => String(t[s.key] || 0)), clean(shootingPercentFor(p))];
@@ -581,7 +581,7 @@ function NetballTracker() {
         doc.text(`Final Score: ${homeScore || 0} - ${awayScore || 0}`, M, y);
       }
       const top = y + 4;
-      const headH = 9 * scale;
+      const headH = 11 * scale;
       const rowH = Math.min((H - M - top - headH) / n, 12) * scale;
       const bodyPt = Math.max(5, Math.min(11, rowH * 2.83 * 0.5));
       doc.autoTable({
@@ -592,7 +592,7 @@ function NetballTracker() {
         theme: "grid",
         rowPageBreak: "avoid",
         styles: { font: "helvetica", fontSize: bodyPt, cellPadding: { top: 0.6, bottom: 0.6, left: 1.2, right: 1.2 }, halign: "center", valign: "middle", minCellHeight: rowH, lineColor: [225, 225, 225], lineWidth: 0.1, textColor: [17, 17, 17], overflow: "linebreak" },
-        headStyles: { fillColor: [17, 17, 17], textColor: [255, 255, 255], fontSize: Math.max(5, 6.5 * scale), fontStyle: "bold", minCellHeight: headH, overflow: "visible" },
+        headStyles: { fillColor: [17, 17, 17], textColor: [255, 255, 255], fontSize: Math.max(5, 7.5 * scale), fontStyle: "bold", minCellHeight: headH, overflow: "visible" },
         alternateRowStyles: { fillColor: [251, 224, 224] },
         columnStyles: { 0: { halign: "left", fontStyle: "bold", cellWidth: 30 }, 1: { halign: "left", fontSize: Math.max(5, bodyPt - 2), cellWidth: 42 } },
         didParseCell: (d) => { if (d.section === "head" && d.column.index < 2) d.cell.styles.halign = "left"; },
@@ -1088,7 +1088,7 @@ function NetballTracker() {
               </div>
             </div>
             <p className="text-xs mb-2 no-print" style={{ color: "#666" }}>
-              App version 4 · PDF tool: {window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable ? "ready ✓" : "not loaded ✗"}
+              App version 5 · PDF tool: {window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable ? "ready ✓" : "not loaded ✗"}
               {pdfMsg ? ` · ${pdfMsg}` : ""}
             </p>
             <p className="text-xs text-gray-500 mb-2 no-print">
