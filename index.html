@@ -524,7 +524,7 @@ function NetballTracker() {
       td:not(:first-child) { white-space: nowrap !important; word-break: keep-all !important; overflow-wrap: normal !important; text-align: center !important; }
       td span { padding: 0 !important; display: inline !important; white-space: nowrap !important; }
       th, td { padding: ${pad}px 3px !important; line-height: 1.25 !important; }
-      td:first-child > div { ${stacked ? "" : "display: inline !important; margin-left: 4px;"} font-size: ${Math.max(7, fontPx - 2)}px !important; }
+      td:first-child > div { white-space: normal !important; max-width: 190px; ${stacked ? "" : "display: inline !important; margin-left: 4px;"} font-size: ${Math.max(7, fontPx - 2)}px !important; }
       tbody tr { height: ${rowPx}px; }
       td { vertical-align: middle !important; }
       thead th { height: 38px; vertical-align: middle !important; }
